@@ -1,6 +1,6 @@
 service_name: demo-service-e
 environment: dev
-region: ap-south-1
+region: us-east-1
 deployment_type: lambda
 artifact_location: local
 deployment_strategy: blue-green
