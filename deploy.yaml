@@ -1,0 +1,10 @@
+service_name: demo-service-e
+environment: dev
+region: ap-south-1
+deployment_type: lambda
+artifact_location: local
+deployment_strategy: blue-green
+test_command: npm test
+# health_check_endpoint: https://api.example.com/health
+# notification_email: dev@example.com
+# slack_webhook: https://hooks.slack.com/services/xxx
