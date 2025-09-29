@@ -1,6 +1,6 @@
 exports.handler = async (event) => {
   return {
     statusCode: 200,
-    body: JSON.stringify({ message: "Demo Service is live!" }),
+    body: JSON.stringify({ message: "Demo Service is running!" }),
   };
 };
