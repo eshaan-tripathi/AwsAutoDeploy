@@ -5,3 +5,4 @@ exports.handler = async (event) => {
   };
 };
 /*hi*/
+console.log('hihihihihihiji');
