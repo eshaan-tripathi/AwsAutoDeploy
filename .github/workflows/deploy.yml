@@ -17,8 +17,9 @@ jobs:
           npm install
           npm test || exit 0
 
-      - name: Zip Lambda code
-        run: zip -r auto-deploy.zip .
+      - name: Zip Lambda code (excluding node_modules)
+        run: |
+          zip -r auto-deploy.zip . -x "node_modules/*"
 
       - name: Move ZIP to Terraform folder
         run: mv auto-deploy.zip terraform/
