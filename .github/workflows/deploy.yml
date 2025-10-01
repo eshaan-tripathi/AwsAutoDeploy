@@ -54,11 +54,14 @@ jobs:
         run: |
           cd terraform
           terraform apply -auto-approve
+
       - name: Rollback on Failure
         if: failure()
         run: |
-          PREV_VERSION=$(jq -r '.FunctionVersion' previous_version.json)
+          PREV_VERSION=$(cat previous_version.json | jq -r '.AliasDescription.FunctionVersion')
+          echo "Rolling back to version $PREV_VERSION"
           aws lambda update-alias \
           --function-name demo-service-e \
           --name prod \
-          --function-version $PREV_VERSION
+          --function-version "$PREV_VERSION"
+
