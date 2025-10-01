@@ -60,7 +60,7 @@ jobs:
         run: |
           cd terraform
           if aws lambda get-alias --function-name demo-service-e --name prod; then
-            terraform import aws_lambda_alias.demo_service_alias demo-service-e:prod || true
+            terraform import aws_lambda_alias.demo_service_alias demo-service-e/prod || true
           fi
 
       - name: Terraform Apply
@@ -92,3 +92,4 @@ jobs:
             --function-name demo-service-e \
             --name prod \
             --function-version "$PREV_VERSION"
+
