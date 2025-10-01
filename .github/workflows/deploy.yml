@@ -86,7 +86,9 @@ jobs:
       - name: Rollback on Failure
         if: failure()
         run: |
-          PREV_VERSION=$(jq -r '.AliasDescription.FunctionVersion' previous_version.json)
+          echo "Reading previous version..."
+          cat previous_version.json
+          PREV_VERSION=$(jq -r '.FunctionVersion' previous_version.json)
           if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" == "null" ]; then
             echo "Previous version not found or invalid. Skipping rollback."
             exit 0
@@ -96,4 +98,5 @@ jobs:
             --function-name demo-service-e \
             --name prod \
             --function-version "$PREV_VERSION"
+
 
