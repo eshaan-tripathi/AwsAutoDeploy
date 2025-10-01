@@ -18,6 +18,7 @@ resource "aws_lambda_alias" "demo_service_alias" {
   function_version = aws_lambda_function.demo_service.version
 }
 
+
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   alarm_name          = "DemoServiceErrors"
   comparison_operator = "GreaterThanThreshold"
