@@ -55,6 +55,14 @@ jobs:
             echo '{"AliasDescription":{"FunctionVersion":"1"}}' > previous_version.json
             echo "Alias not found. Using default version 1."
           fi
+      
+      - name: Import Lambda Alias if it exists
+        run: |
+          cd terraform
+          if aws lambda get-alias --function-name demo-service-e --name prod; then
+            terraform import aws_lambda_alias.demo_service_alias demo-service-e:prod || true
+          fi
+
       - name: Terraform Apply
         run: |
           cd terraform
@@ -75,8 +83,8 @@ jobs:
         if: failure()
         run: |
           PREV_VERSION=$(jq -r '.AliasDescription.FunctionVersion' previous_version.json)
-          if [ -z "$PREV_VERSION" ]; then
-            echo "Previous version not found. Skipping rollback."
+          if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" == "null" ]; then
+            echo "Previous version not found or invalid. Skipping rollback."
             exit 0
           fi
           echo "Rolling back to version $PREV_VERSION"
