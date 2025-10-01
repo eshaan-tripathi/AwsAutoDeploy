@@ -55,7 +55,11 @@ jobs:
             echo '{"AliasDescription":{"FunctionVersion":"1"}}' > previous_version.json
             echo "Alias not found. Using default version 1."
           fi
-      
+      - name: Debug Previous Version
+        run: |
+          echo "Contents of previous_version.json:"
+          cat previous_version.json
+
       - name: Import Lambda Alias if it exists
         run: |
           cd terraform
