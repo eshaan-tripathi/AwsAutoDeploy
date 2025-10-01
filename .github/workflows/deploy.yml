@@ -15,7 +15,7 @@ jobs:
       - name: Run Tests
         run: |
           npm install
-          npm test || exit 0
+          npm test
 
       - name: Zip Lambda code (excluding node_modules)
         run: |
