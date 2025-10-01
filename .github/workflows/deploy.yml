@@ -46,7 +46,19 @@ jobs:
             terraform import aws_lambda_function.demo_service demo-service-e || true
           fi
 
+      - name: Store Previous Lambda Version
+        run: |
+          aws lambda get-alias --function-name demo-service-e --name prod > previous_version.json
+
       - name: Terraform Apply
         run: |
           cd terraform
           terraform apply -auto-approve
+      - name: Rollback on Failure
+        if: failure()
+        run: |
+          PREV_VERSION=$(jq -r '.FunctionVersion' previous_version.json)
+          aws lambda update-alias \
+          --function-name demo-service-e \
+          --name prod \
+          --function-version $PREV_VERSION
