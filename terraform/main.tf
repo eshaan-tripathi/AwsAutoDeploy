@@ -9,6 +9,13 @@ resource "aws_lambda_function" "demo_service" {
   runtime       = "nodejs18.x"
   role          = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole"
   source_code_hash = filebase64sha256("auto-deploy.zip")
+  publish = true
+}
+
+resource "aws_lambda_alias" "demo_service_alias" {
+  name             = "prod"
+  function_name    = aws_lambda_function.demo_service.function_name
+  function_version = aws_lambda_function.demo_service.version
 }
 
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
