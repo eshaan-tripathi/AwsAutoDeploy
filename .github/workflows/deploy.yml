@@ -1,4 +1,4 @@
-name: Deploy Demo Service
+name: 🚀 Auto Deploy AWS Services
 
 on:
   push:
@@ -7,96 +7,167 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout Code
+      # ---------------------------------------
+      # 1️⃣ Checkout Code
+      # ---------------------------------------
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
+      # ---------------------------------------
+      # 2️⃣ Read service.json configuration
+      # ---------------------------------------
+      - name: Read Service Config
+        id: read_service
+        run: |
+          SERVICE_NAME=$(jq -r '.service_name' service.json)
+          SERVICE_TYPE=$(jq -r '.service_type' service.json)
+          AWS_REGION=$(jq -r '.aws_region' service.json)
+          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
+          echo "SERVICE_TYPE=$SERVICE_TYPE" >> $GITHUB_ENV
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+          echo "Detected service: $SERVICE_TYPE ($SERVICE_NAME in $AWS_REGION)"
+
+      # ---------------------------------------
+      # 3️⃣ Run Unit Tests
+      # ---------------------------------------
       - name: Run Tests
         run: |
           npm install
-          npm test
+          echo "🧪 Running tests from /tests folder..."
+          npm test || (echo "❌ Tests failed! Stopping pipeline." && exit 1)
 
-      - name: Zip Lambda code (excluding node_modules)
+      # ---------------------------------------
+      # 4️⃣ Zip Code (only for code-based services)
+      # ---------------------------------------
+      - name: Package Source Code
+        if: ${{ env.SERVICE_TYPE == 'lambda' || env.SERVICE_TYPE == 'glue' }}
         run: |
-          zip -r auto-deploy.zip . -x "node_modules/*"
+          echo "📦 Packaging code from src/..."
+          cd src
+          zip -r ../deploy.zip . -x "node_modules/*"
+          cd ..
+          mv deploy.zip terraform/
+          echo "Code packaged and moved to terraform folder ✅"
 
-      - name: Move ZIP to Terraform folder
-        run: mv auto-deploy.zip terraform/
-
-      - name: Configure AWS credentials
+      # ---------------------------------------
+      # 5️⃣ Configure AWS Credentials
+      # ---------------------------------------
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
+      # ---------------------------------------
+      # 6️⃣ Setup Terraform
+      # ---------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
       - name: Terraform Init
         run: |
           cd terraform
-          terraform init
+          terraform init -input=false
 
-      - name: Import Lambda if it exists
+      # ---------------------------------------
+      # 7️⃣ Check if service exists and import if needed
+      # ---------------------------------------
+      - name: Import Existing AWS Resource
         run: |
           cd terraform
-          if aws lambda get-function --function-name demo-service-e; then
-            terraform import aws_lambda_function.demo_service demo-service-e || true
-          fi
+          echo "🔍 Checking if $SERVICE_TYPE service $SERVICE_NAME exists..."
 
+          case "$SERVICE_TYPE" in
+            lambda)
+              if aws lambda get-function --function-name "$SERVICE_NAME" >/dev/null 2>&1; then
+                echo "Lambda exists → importing..."
+                terraform import aws_lambda_function.service "$SERVICE_NAME" || true
+              else
+                echo "Lambda does not exist → will create new one"
+              fi
+              ;;
+            s3)
+              if aws s3api head-bucket --bucket "$SERVICE_NAME" >/dev/null 2>&1; then
+                echo "S3 bucket exists → importing..."
+                terraform import aws_s3_bucket.service "$SERVICE_NAME" || true
+              else
+                echo "S3 bucket does not exist → will create new one"
+              fi
+              ;;
+            glue)
+              if aws glue get-job --job-name "$SERVICE_NAME" >/dev/null 2>&1; then
+                echo "Glue job exists → importing..."
+                terraform import aws_glue_job.service "$SERVICE_NAME" || true
+              else
+                echo "Glue job does not exist → will create new one"
+              fi
+              ;;
+            ec2)
+              echo "Skipping import for EC2 (handled via Terraform tags or IDs)."
+              ;;
+            *)
+              echo "⚠️ Unknown service type: $SERVICE_TYPE"
+              ;;
+          esac
+
+      # ---------------------------------------
+      # 8️⃣ Save Previous Version (for rollback)
+      # ---------------------------------------
       - name: Store Previous Lambda Version
+        if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
           set -e
-          if aws lambda get-alias --function-name demo-service-e --name prod > previous_version.json; then
+          if aws lambda get-alias --function-name "$SERVICE_NAME" --name prod > previous_version.json; then
             echo "Alias found and version stored."
           else
-            echo '{"AliasDescription":{"FunctionVersion":"1"}}' > previous_version.json
-            echo "Alias not found. Using default version 1."
+            echo '{"FunctionVersion":"1"}' > previous_version.json
+            echo "No alias found, using default version 1."
           fi
-      - name: Debug Previous Version
-        run: |
-          echo "Contents of previous_version.json:"
           cat previous_version.json
 
-      - name: Import Lambda Alias if it exists
+      # ---------------------------------------
+      # 9️⃣ Terraform Apply
+      # ---------------------------------------
+      - name: Terraform Apply (Create/Update Infra)
         run: |
           cd terraform
-          if aws lambda get-alias --function-name demo-service-e --name prod; then
-            terraform import aws_lambda_alias.demo_service_alias demo-service-e/prod || true
-          fi
-
-      - name: Terraform Apply
-        run: |
-          cd terraform
+          echo "🚀 Applying Terraform for $SERVICE_TYPE: $SERVICE_NAME"
           terraform apply -auto-approve
 
-      - name: Create Alias If Missing
+      # ---------------------------------------
+      # 🔟 Create Alias (Lambda only)
+      # ---------------------------------------
+      - name: Create Alias if Missing
+        if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
-          if ! aws lambda get-alias --function-name demo-service-e --name prod; then
-            LATEST_VERSION=$(aws lambda list-versions-by-function --function-name demo-service-e --query 'Versions[-1].Version' --output text)
+          if ! aws lambda get-alias --function-name "$SERVICE_NAME" --name prod >/dev/null 2>&1; then
+            LATEST_VERSION=$(aws lambda list-versions-by-function --function-name "$SERVICE_NAME" --query 'Versions[-1].Version' --output text)
             aws lambda create-alias \
-              --function-name demo-service-e \
+              --function-name "$SERVICE_NAME" \
               --name prod \
               --function-version "$LATEST_VERSION"
             echo "Alias 'prod' created pointing to version $LATEST_VERSION"
           fi
 
+      # ---------------------------------------
+      # 1️⃣1️⃣ Rollback on Failure
+      # ---------------------------------------
       - name: Rollback on Failure
-        if: failure()
+        if: failure() && env.SERVICE_TYPE == 'lambda'
         run: |
-          echo "Reading previous version..."
+          echo "⚠️ Deployment failed. Attempting rollback..."
           cat previous_version.json
           PREV_VERSION=$(jq -r '.FunctionVersion' previous_version.json)
           if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" == "null" ]; then
-            echo "Previous version not found or invalid. Skipping rollback."
+            echo "Previous version not found, skipping rollback."
             exit 0
           fi
-          echo "Rolling back to version $PREV_VERSION"
           aws lambda update-alias \
-            --function-name demo-service-e \
+            --function-name "$SERVICE_NAME" \
             --name prod \
             --function-version "$PREV_VERSION"
-
-
+          echo "✅ Rolled back to previous version $PREV_VERSION"
