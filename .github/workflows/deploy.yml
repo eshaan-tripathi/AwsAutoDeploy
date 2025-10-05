@@ -45,12 +45,13 @@ jobs:
       - name: Package Source Code
         if: ${{ env.SERVICE_TYPE == 'lambda' || env.SERVICE_TYPE == 'glue' }}
         run: |
-          echo "📦 Packaging code from src/..."
+          echo "📦 Packaging src/ excluding node_modules..."
           cd src
-          zip -r ../deploy.zip . -x "node_modules/*"
+          zip -r ../auto-deploy.zip . -x "node_modules/*"
           cd ..
-          mv deploy.zip terraform/
-          echo "Code packaged and moved to terraform folder ✅"
+          mv auto-deploy.zip terraform/
+          echo "✅ Code packaged and moved to terraform folder"
+
 
       # ---------------------------------------
       # 5️⃣ Configure AWS Credentials
