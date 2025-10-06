@@ -77,8 +77,41 @@ jobs:
             echo "No alias found, using default version 1."
           fi
 
+      # 🔍 Check if Service Already Exists
+      - name: Check if Service Exists
+        id: check_service
+        run: |
+          echo "🔍 Checking if $SERVICE_TYPE service $SERVICE_NAME exists..."
+          EXISTS="false"
+
+          case "$SERVICE_TYPE" in
+            lambda)
+              if aws lambda get-function --function-name "$SERVICE_NAME" >/dev/null 2>&1; then
+                EXISTS="true"
+              fi
+              ;;
+            s3)
+              if aws s3api head-bucket --bucket "$SERVICE_NAME" >/dev/null 2>&1; then
+                EXISTS="true"
+              fi
+              ;;
+            glue)
+              if aws glue get-job --job-name "$SERVICE_NAME" >/dev/null 2>&1; then
+                EXISTS="true"
+              fi
+              ;;
+            ec2)
+              # EC2 existence check can be complex; skip for now
+              EXISTS="unknown"
+              ;;
+          esac
+
+          echo "SERVICE_EXISTS=$EXISTS" >> $GITHUB_ENV
+          echo "Service exists: $EXISTS"
+
       # 🔟 Terraform Plan
       - name: Terraform Plan
+        if: ${{ env.SERVICE_EXISTS != 'true' }}
         run: |
           cd terraform
           echo "📋 Running Terraform plan for $SERVICE_TYPE: $SERVICE_NAME"
@@ -91,6 +124,7 @@ jobs:
 
       # 1️⃣1️⃣ Terraform Apply using Plan
       - name: Terraform Apply (Create/Update Infra)
+        if: ${{ env.SERVICE_EXISTS != 'true' }}
         run: |
           cd terraform
           export TF_LOG=INFO
@@ -115,11 +149,17 @@ jobs:
         if: failure() && env.SERVICE_TYPE == 'lambda'
         run: |
           echo "⚠️ Deployment failed. Attempting rollback..."
+          if ! aws lambda get-function --function-name "$SERVICE_NAME" >/dev/null 2>&1; then
+            echo "Lambda function does not exist. Skipping rollback."
+            exit 0
+          fi
+
           PREV_VERSION=$(jq -r '.FunctionVersion' previous_version.json)
           if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" == "null" ]; then
             echo "Previous version not found, skipping rollback."
             exit 0
           fi
+
           aws lambda update-alias \
             --function-name "$SERVICE_NAME" \
             --name prod \
