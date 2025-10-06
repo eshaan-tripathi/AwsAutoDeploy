@@ -32,7 +32,14 @@ jobs:
         id: detect
         run: |
           echo "services=[]" >> $GITHUB_ENV
-          changed_files=$(git diff --name-only HEAD~1 HEAD)
+
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            changed_files=$(git diff --name-only HEAD~1 HEAD)
+          else
+            echo "No previous commit found (first push). Considering all services."
+            changed_files=$(find lambda glue -type f)
+          fi
+
           services=()
 
           if echo "$changed_files" | grep -q "lambda/"; then
@@ -44,6 +51,7 @@ jobs:
 
           echo "services=${services[*]}" >> $GITHUB_ENV
           echo "Detected services: ${services[*]}"
+
 
       - name: Zip Lambda code
         if: contains(env.services, 'lambda')
