@@ -10,11 +10,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      # 1️⃣ Checkout Code
       - name: Checkout Repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Read Service Config
       - name: Read Service Config
         id: read_service
         run: |
@@ -26,7 +24,6 @@ jobs:
           echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
           echo "Detected service: $SERVICE_TYPE ($SERVICE_NAME in $AWS_REGION)"
 
-      # 3️⃣ Syntax Check for Lambda and Glue
       - name: Syntax Check for Lambda and Glue
         run: |
           echo "🔍 Running syntax checks for $SERVICE_TYPE..."
@@ -59,14 +56,12 @@ jobs:
             echo "ℹ️ No syntax check needed for service type: $SERVICE_TYPE"
           fi
 
-      # 4️⃣ Run Tests
       - name: Run Tests
         run: |
           npm ci
           echo "🧪 Running tests..."
           npm test || (echo "❌ Tests failed! Stopping pipeline." && exit 1)
 
-      # 5️⃣ Package Source Code
       - name: Package Source Code
         if: ${{ env.SERVICE_TYPE == 'lambda' || env.SERVICE_TYPE == 'glue' }}
         run: |
@@ -74,7 +69,6 @@ jobs:
           zip -r auto-deploy.zip src -x "src/node_modules/*" "*.log" "*.test.js"
           mv auto-deploy.zip terraform/
 
-      # 6️⃣ Configure AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -82,17 +76,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 7️⃣ Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      # 8️⃣ Terraform Init
       - name: Terraform Init
         run: |
           cd terraform
           terraform init -input=false
 
-      # 9️⃣ Store Previous Lambda Version
       - name: Store Previous Lambda Version
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
@@ -103,7 +94,6 @@ jobs:
             echo "No alias found, using default version 1."
           fi
 
-      # 🔟 Check if Service Exists
       - name: Check if Service Exists
         id: check_service
         run: |
@@ -134,7 +124,6 @@ jobs:
           echo "SERVICE_EXISTS=$EXISTS" >> $GITHUB_ENV
           echo "Service exists: $EXISTS"
 
-      # 1️⃣1️⃣ Terraform Plan
       - name: Terraform Plan
         if: ${{ env.SERVICE_EXISTS != 'true' }}
         run: |
@@ -146,14 +135,12 @@ jobs:
             -var="service_type=${{ env.SERVICE_TYPE }}" \
             -var="region=${{ env.AWS_REGION }}"
 
-      # 1️⃣2️⃣ Terraform Apply
       - name: Terraform Apply
         if: ${{ env.SERVICE_EXISTS != 'true' }}
         run: |
           cd terraform
           terraform apply -parallelism=10 tfplan
 
-      # 1️⃣3️⃣ Create Alias if Missing
       - name: Create Alias if Missing
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
@@ -166,7 +153,6 @@ jobs:
             echo "Alias 'prod' created pointing to version $LATEST_VERSION"
           fi
 
-      # 1️⃣4️⃣ Rollback on Any Failure
       - name: Rollback on Any Failure
         if: always()
         run: |
