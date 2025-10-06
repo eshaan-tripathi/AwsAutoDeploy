@@ -63,6 +63,22 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.0
+      
+      - name: Ensure Terraform Backend S3 Bucket Exists
+        run: |
+          if ! aws s3 ls "s3://esh-terraform-state-bucket" 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "✅ Backend bucket already exists"
+          else
+            echo "🪣 Creating Terraform state bucket..."
+            aws s3api create-bucket \
+              --bucket esh-terraform-state-bucket \
+              --region ap-south-1 \
+              --create-bucket-configuration LocationConstraint=ap-south-1
+          fi
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
 
       - name: Terraform Init
         working-directory: terraform
