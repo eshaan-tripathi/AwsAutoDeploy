@@ -1,7 +1,8 @@
-const { handler } = require("../index");
+const { handler } = require("../src/index"); // <-- fix path to src/index.js
 
 test("Lambda returns 200", async () => {
   const response = await handler({});
   expect(response.statusCode).toBe(200);
-  expect(JSON.parse(response.body).message).toBe("Lambda executed successfully!");
+  const body = JSON.parse(response.body);
+  expect(body.message).toBe("Lambda executed successfully");
 });

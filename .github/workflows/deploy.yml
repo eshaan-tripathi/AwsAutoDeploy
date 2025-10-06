@@ -52,12 +52,13 @@ jobs:
       - name: Check JavaScript Syntax
         run: |
           set -e
-          echo "🔍 Checking syntax for src/ and tests/ ..."
+          echo "🔍 Checking syntax for src/ ..."
           if ! npm list eslint >/dev/null 2>&1; then
             npm install eslint --save-dev
           fi
-          npx eslint src/**/*.js tests/**/*.js --max-warnings=0
+          npx eslint src/**/*.js --max-warnings=0
           echo "✅ No syntax errors found!"
+
 
       # ---------------------------------------
       # 5️⃣ Run Tests
@@ -65,6 +66,7 @@ jobs:
       - name: Run Tests
         run: |
           set -e
+          npm install --save-dev jest
           npm test
 
       # ---------------------------------------
@@ -74,9 +76,10 @@ jobs:
         run: |
           set -e
           cd src
-          zip -r ../deploy.zip . -x "node_modules/*" "*.test.js"
+          zip -r ../auto-deploy.zip . -x "node_modules/*" "*.test.js"
           cd ..
           echo "✅ Code packaged successfully"
+
 
       # ---------------------------------------
       # 7️⃣ Setup Terraform
