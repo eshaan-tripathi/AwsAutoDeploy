@@ -1,92 +1,81 @@
-name: 🚀 Deploy AWS Service
+name: Lambda/Glue CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
-  deploy:
+  test-and-deploy:
     runs-on: ubuntu-latest
+
     env:
-      TF_LOG: ERROR
-      TF_INPUT: false
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
+      LAMBDA_FUNCTION_NAME: esh-lambda-demo
+      GLUE_JOB_NAME: esh-glue-job
 
     steps:
-      - name: Checkout repository
+      # 1. Checkout the code
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Load service config
-        id: load-config
-        run: |
-          set -e
-          SERVICE_NAME=$(jq -r '.service_name' service.json)
-          SERVICE_TYPE=$(jq -r '.service_type' service.json)
-          AWS_REGION=$(jq -r '.aws_region' service.json)
+      # 2. Setup Python (if your Lambda/Glue code is Python)
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
-          echo "SERVICE_TYPE=$SERVICE_TYPE" >> $GITHUB_ENV
-          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
-
-      - name: Install Node dependencies
+      # 3. Install dependencies
+      - name: Install Dependencies
         run: |
-          set -e
-          npm install
+          pip install -r src/requirements.txt
+          # If using Node.js Lambda
+          # npm install --prefix src
 
-      - name: Run tests
+      # 4. Run tests
+      - name: Run Tests
         run: |
-          set -e
-          npm install --save-dev jest
-          npm test
+          cd src
+          pytest || exit 1  # Exit if tests fail
+          # For Node.js: npm test || exit 1
 
-      - name: Package Lambda (if service is lambda)
+      # 5. Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 6. Deploy or update Lambda function
+      - name: Deploy/Update Lambda
         run: |
-          set -e
-          if [ "$SERVICE_TYPE" == "lambda" ]; then
-            cd src
-            zip -r ../deploy.zip . -x "node_modules/*" "*.test.js"
-            cd ..
+          FUNCTION_EXISTS=$(aws lambda get-function --function-name $LAMBDA_FUNCTION_NAME --query 'Configuration.FunctionName' --output text 2>/dev/null || echo "")
+          
+          zip -r lambda_package.zip . -x "*.git*" -x "tests/*"
+          
+          if [ "$FUNCTION_EXISTS" == "$LAMBDA_FUNCTION_NAME" ]; then
+            echo "Updating existing Lambda function..."
+            aws lambda update-function-code --function-name $LAMBDA_FUNCTION_NAME --zip-file fileb://lambda_package.zip
+          else
+            echo "Creating new Lambda function..."
+            aws lambda create-function \
+              --function-name $LAMBDA_FUNCTION_NAME \
+              --runtime python3.11 \
+              --role arn:aws:iam::123456789012:role/your-lambda-role \
+              --handler handler.lambda_handler \
+              --zip-file fileb://lambda_package.zip
           fi
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.2
-
-      - name: Terraform Init
+      # 7. Deploy or update Glue job (optional, if you have Glue)
+      - name: Deploy/Update Glue Job
         run: |
-          set -e
-          cd terraform
-          terraform init -input=false
-
-      - name: Terraform Plan
-        run: |
-          set -e
-          cd terraform
-          terraform plan -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
-
-      - name: Terraform Apply
-        run: |
-          set -e
-          cd terraform
-          terraform apply -auto-approve -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
-
-      - name: Verify Deployment
-        run: |
-          set -e
-          echo "🔎 Verifying deployment..."
-          case "$SERVICE_TYPE" in
-            lambda)
-              aws lambda get-function --function-name "$SERVICE_NAME"
-              ;;
-            glue)
-              aws glue get-job --job-name "$SERVICE_NAME"
-              ;;
-            *)
-              echo "Unknown service type"
-              exit 1
-              ;;
-          esac
-          echo "✅ Deployment verified successfully!"
+          JOB_EXISTS=$(aws glue get-job --job-name $GLUE_JOB_NAME --query 'Job.Name' --output text 2>/dev/null || echo "")
+          
+          if [ "$JOB_EXISTS" == "$GLUE_JOB_NAME" ]; then
+            echo "Updating existing Glue job..."
+            aws glue update-job --job-name $GLUE_JOB_NAME --job-update file://glue_job_update.json
+          else
+            echo "Creating new Glue job..."
+            aws glue create-job --cli-input-json file://glue_job_create.json
+          fi
