@@ -48,6 +48,7 @@ jobs:
             mvn test
           else
             echo "No recognized project files. Skipping tests."
+          fi
 
       - name: Zip Lambda code
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
