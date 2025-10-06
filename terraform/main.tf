@@ -7,7 +7,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket = "esh-terraform-state-bucket"
+    bucket = "esh-terra"
     key    = "lambda-glue/terraform.tfstate"
     region = "us-east-1"
   }

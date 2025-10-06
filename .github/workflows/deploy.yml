@@ -66,12 +66,12 @@ jobs:
       
       - name: Ensure Terraform Backend S3 Bucket Exists
         run: |
-          if ! aws s3 ls "s3://esh-terraform-state-bucket" 2>&1 | grep -q 'NoSuchBucket'; then
+          if ! aws s3 ls "s3://esh-terra" 2>&1 | grep -q 'NoSuchBucket'; then
             echo "✅ Backend bucket already exists"
           else
             echo "🪣 Creating Terraform state bucket..."
             aws s3api create-bucket \
-              --bucket esh-terraform-state-bucket \
+              --bucket esh-terra \
               --region us-east-1 \
               --create-bucket-configuration LocationConstraint=us-east-1
           fi
