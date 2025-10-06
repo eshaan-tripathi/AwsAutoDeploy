@@ -20,7 +20,7 @@ provider "aws" {
 # Lambda Deployment
 resource "aws_lambda_function" "demo_lambda" {
   filename         = var.lambda_zip
-  function_name    = "demo_lambda"
+  function_name    = "demo_service"
   role             = var.lambda_role
   handler          = var.lambda_handler
   runtime          = var.lambda_runtime
