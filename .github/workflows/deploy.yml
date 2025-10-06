@@ -104,8 +104,8 @@ jobs:
             -var="lambda_zip=../lambda_deploy.zip" \
             -var="lambda_handler=index.handler" \
             -var="lambda_runtime=nodejs18.x" \
-            -var="lambda_role=arn:aws:iam::<ACCOUNT_ID>:role/lambda-role" \
-            -var="glue_role=arn:aws:iam::<ACCOUNT_ID>:role/glue-role" \
+            -var="lambda_role=arn:aws:iam::612572392212:role/AWSLambdaExecutionRole" \
+            -var="glue_role=arn:aws:iam::612572392212:role/GLUEREADWRITE" \
             -var="glue_script_path=s3://<your-bucket>/glue_script.py"
 
 
