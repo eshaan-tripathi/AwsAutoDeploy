@@ -72,8 +72,8 @@ jobs:
             echo "🪣 Creating Terraform state bucket..."
             aws s3api create-bucket \
               --bucket esh-terraform-state-bucket \
-              --region ap-south-1 \
-              --create-bucket-configuration LocationConstraint=ap-south-1
+              --region us-east-1 \
+              --create-bucket-configuration LocationConstraint=us-east-1
           fi
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -96,11 +96,11 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ap-south-1
+          AWS_DEFAULT_REGION: us-east-1
         run: |
           set -e
           terraform apply -auto-approve \
-            -var="region=ap-south-1" \
+            -var="region=us-east-1" \
             -var="lambda_zip=../lambda_deploy.zip" \
             -var="lambda_handler=index.handler" \
             -var="lambda_runtime=nodejs18.x" \
