@@ -1,12 +1,13 @@
-import js from "@eslint/js";
+// eslint.config.js
+const js = require("@eslint/js");
 
-export default [
+module.exports = [
   js.configs.recommended,
   {
     files: ["src/**/*.js", "tests/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "commonjs",
+      sourceType: "script", // CommonJS
       globals: {
         require: "readonly",
         module: "readonly",
@@ -15,11 +16,11 @@ export default [
         console: "readonly",
         test: "readonly",
         expect: "readonly"
-      }
+      },
     },
     rules: {
       "no-unused-vars": "error",
       "no-undef": "error"
-    }
-  }
+    },
+  },
 ];

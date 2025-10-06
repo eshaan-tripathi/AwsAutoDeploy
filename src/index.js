@@ -1,5 +1,10 @@
-const axios = require("axios");
+// CommonJS format
+exports.handler = async (event) => {
+  // Sample logic
+  const response = {
+    statusCode: 200,
+    body: JSON.stringify({ message: "Lambda executed successfully!", input: event }),
+  };
 
-test("sample test", () => {
-  expect(1 + 1).toBe(2);
-});
+  return response;
+};

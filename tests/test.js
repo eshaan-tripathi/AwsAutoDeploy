@@ -1,7 +1,13 @@
-const { handler } = require('../src/index');
+const { handler } = require("../src/index");
 
-test('should return success message', async () => {
-  const response = await handler({});
-  expect(response.statusCode).toBe(200);
-  expect(JSON.parse(response.body).message).toBe("Demo Service is live!");
+test("Lambda handler returns expected response", async () => {
+  const event = { key: "value" };
+  const result = await handler(event);
+
+  expect(result).toHaveProperty("statusCode", 200);
+  expect(result).toHaveProperty("body");
+
+  const body = JSON.parse(result.body);
+  expect(body).toHaveProperty("message", "Lambda executed successfully!");
+  expect(body).toHaveProperty("input", event);
 });

@@ -8,7 +8,7 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "jest --passWithNoTests",
+    "test": "jest",
     "lint": "eslint src/**/*.js tests/**/*.js --max-warnings=0"
   },
   "repository": {
