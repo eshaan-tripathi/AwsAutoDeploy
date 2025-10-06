@@ -1,4 +1,4 @@
-name: Deploy AWS Service
+name: 🚀 Deploy AWS Service
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
 
     steps:
       # ---------------------------------------
-      # 1️⃣ Checkout Code
+      # 1️⃣ Checkout repository
       # ---------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -53,7 +53,6 @@ jobs:
         run: |
           set -e
           echo "🔍 Checking syntax for src/ and tests/ ..."
-          # Install ESLint if not included
           if ! npm list eslint >/dev/null 2>&1; then
             npm install eslint --save-dev
           fi
@@ -61,7 +60,7 @@ jobs:
           echo "✅ No syntax errors found!"
 
       # ---------------------------------------
-      # 5️⃣ Run tests (stop if any test fails)
+      # 5️⃣ Run Tests
       # ---------------------------------------
       - name: Run Tests
         run: |
@@ -97,14 +96,13 @@ jobs:
           terraform init -input=false
 
       # ---------------------------------------
-      # 9️⃣ Check & Import Existing Resource
+      # 9️⃣ Import Existing Resource
       # ---------------------------------------
       - name: Import Existing AWS Resource
         run: |
           set -e
           cd terraform
           echo "🔍 Checking if $SERVICE_TYPE service $SERVICE_NAME exists..."
-
           case "$SERVICE_TYPE" in
             lambda)
               if aws lambda get-function --function-name "$SERVICE_NAME" >/dev/null 2>&1; then
@@ -158,13 +156,17 @@ jobs:
           terraform plan -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
 
       # ---------------------------------------
-      # 1️⃣2️⃣ Terraform Apply (create/update infra)
+      # 1️⃣2️⃣ Terraform Apply with Rollback
       # ---------------------------------------
       - name: Terraform Apply
         run: |
           set -e
           cd terraform
-          terraform apply -auto-approve -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
+          if ! terraform apply -auto-approve -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"; then
+            echo "❌ Terraform apply failed! Rolling back..."
+            terraform destroy -auto-approve -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
+            exit 1
+          fi
 
       # ---------------------------------------
       # 1️⃣3️⃣ Post-Deployment Verification

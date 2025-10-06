@@ -17,7 +17,7 @@ variable "region" {
 variable "lambda_role_arn" {
   description = "IAM role ARN for Lambda execution"
   type        = string
-  default     = "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AWSLambdaExecutionRole"
+  default     = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole"
 }
 
 provider "aws" {
@@ -29,8 +29,8 @@ resource "aws_lambda_function" "this" {
   count = var.service_type == "lambda" ? 1 : 0
 
   function_name     = var.service_name
-  filename          = "${path.module}/auto-deploy.zip"
-  source_code_hash  = filebase64sha256("${path.module}/auto-deploy.zip")
+  filename          = "${path.module}/deploy.zip"
+  source_code_hash  = filebase64sha256("${path.module}/deploy.zip")
   handler           = "index.handler"
   runtime           = "nodejs18.x"
   role              = var.lambda_role_arn
