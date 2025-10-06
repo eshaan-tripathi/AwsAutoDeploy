@@ -9,11 +9,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. Read service.json for dynamic configuration
       - name: Read service.json
         id: service
         run: |
@@ -28,35 +26,29 @@ jobs:
           echo "RUNTIME=$RUNTIME" >> $GITHUB_ENV
           echo "HANDLER=$HANDLER" >> $GITHUB_ENV
 
-      # 3. Install dependencies and run tests
       - name: Setup Dependencies & Run Tests
         run: |
           set -e
           cd src
           if [ -f "package.json" ]; then
-            echo "Node.js project detected"
             curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y nodejs zip
             npm install
             npm test
           elif [ -f "requirements.txt" ]; then
-            echo "Python project detected"
             apt-get update
             apt-get install -y python3 python3-pip zip
             python3 -m pip install --upgrade pip
             pip install -r requirements.txt
             pytest
           elif [ -f "pom.xml" ]; then
-            echo "Java Maven project detected"
             apt-get update
             apt-get install -y maven zip
             mvn install
             mvn test
           else
             echo "No recognized project files. Skipping tests."
-          fi
 
-      # 4. Zip source code (if Lambda)
       - name: Zip Lambda code
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
@@ -64,13 +56,11 @@ jobs:
           cd src
           zip -r ../${SERVICE_NAME}.zip . -x "*.git*" -x "node_modules/*" -x "tests/*"
 
-      # 5. Move ZIP to Terraform folder
       - name: Move ZIP to Terraform folder
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
           mv ${SERVICE_NAME}.zip terraform/
 
-      # 6. Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
@@ -78,51 +68,58 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 7. Generate Terraform vars dynamically
       - name: Generate Terraform vars
         run: |
+          if [ -z "${{ secrets.LAMBDA_ROLE_ARN }}" ] && [ "${SERVICE_TYPE}" = "lambda" ]; then
+            echo "Error: LAMBDA_ROLE_ARN secret not set"
+            exit 1
+          fi
           echo "service_name = \"${SERVICE_NAME}\"" > terraform/terraform.tfvars
           echo "service_type = \"${SERVICE_TYPE}\"" >> terraform/terraform.tfvars
           echo "region = \"${AWS_REGION}\"" >> terraform/terraform.tfvars
           echo "lambda_role_arn = \"${{ secrets.LAMBDA_ROLE_ARN }}\"" >> terraform/terraform.tfvars
           if [ "${SERVICE_TYPE}" = "lambda" ]; then
-            echo "lambda_runtime = \"${RUNTIME:-nodejs20.x}\"" >> terraform/terraform.tfvars
+            echo "lambda_runtime = \"${RUNTIME:-nodejs18.x}\"" >> terraform/terraform.tfvars
             echo "lambda_handler = \"${HANDLER:-index.handler}\"" >> terraform/terraform.tfvars
           fi
 
-      # 8. Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      # 9. Terraform Init
       - name: Terraform Init
         run: |
           cd terraform
           terraform init
 
-      # 10. Backup Glue job definition for rollback (if Glue)
       - name: Backup Glue Job
         if: ${{ env.SERVICE_TYPE == 'glue' }}
         run: |
           aws glue get-job --job-name $SERVICE_NAME > terraform/previous_glue.json || echo "{}"
 
-      # 11. Store previous Lambda version for rollback (if Lambda)
       - name: Store previous Lambda version
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
           aws lambda get-alias --function-name $SERVICE_NAME --name prod > terraform/previous_version.json || echo "{}"
 
-      # 12. Terraform Apply
       - name: Terraform Apply
         run: |
           cd terraform
           terraform apply -auto-approve
 
-      # 13. Rollback on Failure (Lambda)
+      - name: Ensure Lambda alias exists (prod)
+        if: ${{ env.SERVICE_TYPE == 'lambda' }}
+        run: |
+          EXISTS=$(aws lambda get-alias --function-name $SERVICE_NAME --name prod --query 'Name' --output text 2>/dev/null || echo "")
+          if [ -z "$EXISTS" ]; then
+            NEW_VERSION=$(aws lambda publish-version --function-name $SERVICE_NAME --query 'Version' --output text)
+            aws lambda create-alias --function-name $SERVICE_NAME --name prod --function-version $NEW_VERSION
+            echo "Created prod alias pointing to version $NEW_VERSION"
+          fi
+
       - name: Rollback on Failure (Lambda)
         if: failure() && env.SERVICE_TYPE == 'lambda'
         run: |
-          PREV_VERSION=$(jq -r '.AliasDescription.FunctionVersion' terraform/previous_version.json)
+          PREV_VERSION=$(jq -r '.AliasDescription.FunctionVersion // empty' terraform/previous_version.json)
           if [ -n "$PREV_VERSION" ]; then
             echo "Rolling back Lambda $SERVICE_NAME to version $PREV_VERSION"
             aws lambda update-alias \
@@ -130,10 +127,9 @@ jobs:
               --name prod \
               --function-version "$PREV_VERSION"
           else
-            echo "No previous Lambda version found, cannot rollback."
+            echo "No previous Lambda version found. Rollback skipped."
           fi
 
-      # 14. Rollback on Failure (Glue)
       - name: Rollback on Failure (Glue)
         if: failure() && env.SERVICE_TYPE == 'glue'
         run: |
