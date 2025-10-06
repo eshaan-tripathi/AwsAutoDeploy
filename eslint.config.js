@@ -1,16 +1,25 @@
-module.exports = {
-  env: {
-    commonjs: true,
-    es2021: true,
-    node: true,
-    jest: true
-  },
-  extends: "eslint:recommended",
-  parserOptions: {
-    ecmaVersion: "latest"
-  },
-  rules: {
-    "no-unused-vars": "error",
-    "no-undef": "error"
+import js from "@eslint/js";
+
+export default [
+  js.configs.recommended,
+  {
+    files: ["src/**/*.js", "tests/**/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "commonjs",
+      globals: {
+        require: "readonly",
+        module: "readonly",
+        exports: "readonly",
+        process: "readonly",
+        console: "readonly",
+        test: "readonly",
+        expect: "readonly"
+      }
+    },
+    rules: {
+      "no-unused-vars": "error",
+      "no-undef": "error"
+    }
   }
-};
+];
