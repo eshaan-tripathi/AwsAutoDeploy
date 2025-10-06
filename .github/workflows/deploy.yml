@@ -64,7 +64,6 @@ jobs:
           npm ci
           echo "🧪 Running tests..."
           npm test
-
       - name: Package Source Code
         if: ${{ env.SERVICE_TYPE == 'lambda' || env.SERVICE_TYPE == 'glue' }}
         run: |
