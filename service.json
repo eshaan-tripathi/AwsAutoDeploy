@@ -1,5 +1,0 @@
-{
-  "service_name": "esh-lambda-demo",
-  "service_type": "lambda",
-  "aws_region": "us-east-1"
-}

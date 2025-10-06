@@ -1,0 +1,14 @@
+{
+  "lambda": {
+    "path": "lambda/",
+    "handler": "index.handler",
+    "runtime": "nodejs18.x",
+    "zip": "lambda_deploy.zip",
+    "terraform_resource": "aws_lambda_function.demo_lambda"
+  },
+  "glue": {
+    "path": "glue/",
+    "script": "glue_script.py",
+    "terraform_resource": "aws_glue_job.demo_glue"
+  }
+}

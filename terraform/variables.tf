@@ -1,27 +1,10 @@
-# terraform/variables.tf
-
-variable "service_name" {
-  type = string
-}
-
-variable "service_type" {
-  type = string
-}
-
 variable "region" {
-  type = string
+  default = "us-east-1"
 }
 
-variable "lambda_role_arn" {
-  type = string
-}
-
-variable "lambda_runtime" {
-  type    = string
-  default = "nodejs18.x"
-}
-
-variable "lambda_handler" {
-  type    = string
-  default = "index.handler"
-}
+variable "lambda_zip" {}
+variable "lambda_role" {}
+variable "lambda_handler" {}
+variable "lambda_runtime" {}
+variable "glue_role" {}
+variable "glue_script_path" {}

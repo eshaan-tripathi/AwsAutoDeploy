@@ -1,34 +1,38 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+
+  backend "s3" {
+    bucket = "esh-terraform-state-bucket"
+    key    = "lambda-glue/terraform.tfstate"
+    region = "us-east-1"
+  }
+}
+
 provider "aws" {
-  region = "us-east-1"
+  region = var.region
 }
 
-resource "aws_lambda_function" "demo_service" {
-  function_name = "demo-service-e"
-  filename      = "auto-deploy.zip"
-  handler       = "index.handler"
-  runtime       = "nodejs18.x"
-  role          = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole"
-  source_code_hash = filebase64sha256("auto-deploy.zip")
-  publish = true
+# Lambda Deployment
+resource "aws_lambda_function" "demo_lambda" {
+  filename         = var.lambda_zip
+  function_name    = "demo_lambda"
+  role             = var.lambda_role
+  handler          = var.lambda_handler
+  runtime          = var.lambda_runtime
+  source_code_hash = filebase64sha256(var.lambda_zip)
 }
 
-resource "aws_lambda_alias" "demo_service_alias" {
-  name             = "prod"
-  function_name    = aws_lambda_function.demo_service.function_name
-  function_version = aws_lambda_function.demo_service.version
-}
-
-resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
-  alarm_name          = "DemoServiceErrors"
-  comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "Errors"
-  namespace           = "AWS/Lambda"
-  period              = "60"
-  statistic           = "Sum"
-  threshold           = "1"
-  alarm_description   = "Alarm when Lambda errors exceed 1"
-  dimensions = {
-    FunctionName = aws_lambda_function.demo_service.function_name
+# Glue Deployment
+resource "aws_glue_job" "demo_glue" {
+  name     = "demo_glue"
+  role_arn = var.glue_role
+  command {
+    name            = "glueetl"
+    script_location = var.glue_script_path
   }
 }
