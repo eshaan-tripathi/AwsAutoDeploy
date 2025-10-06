@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout code
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      # 2. Read service.json for dynamic configuration
       - name: Read service.json
         id: service
         run: |
@@ -26,6 +28,7 @@ jobs:
           echo "RUNTIME=$RUNTIME" >> $GITHUB_ENV
           echo "HANDLER=$HANDLER" >> $GITHUB_ENV
 
+      # 3. Install dependencies and run tests
       - name: Setup Dependencies & Run Tests
         run: |
           set -e
@@ -48,8 +51,8 @@ jobs:
             mvn test
           else
             echo "No recognized project files. Skipping tests."
-          fi
 
+      # 4. Zip Lambda code if Lambda
       - name: Zip Lambda code
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
@@ -57,11 +60,13 @@ jobs:
           cd src
           zip -r ../${SERVICE_NAME}.zip . -x "*.git*" -x "node_modules/*" -x "tests/*"
 
+      # 5. Move ZIP to Terraform folder if Lambda
       - name: Move ZIP to Terraform folder
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
           mv ${SERVICE_NAME}.zip terraform/
 
+      # 6. Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v3
         with:
@@ -69,6 +74,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 7. Generate Terraform vars dynamically
       - name: Generate Terraform vars
         run: |
           if [ -z "${{ secrets.LAMBDA_ROLE_ARN }}" ] && [ "${SERVICE_TYPE}" = "lambda" ]; then
@@ -84,29 +90,52 @@ jobs:
             echo "lambda_handler = \"${HANDLER:-index.handler}\"" >> terraform/terraform.tfvars
           fi
 
+      # 8. Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
+      # 9. Terraform Init
       - name: Terraform Init
         run: |
           cd terraform
           terraform init
 
-      - name: Backup Glue Job
-        if: ${{ env.SERVICE_TYPE == 'glue' }}
+      # 10. Import existing resource if it exists
+      - name: Import existing resource (Lambda/Glue)
         run: |
-          aws glue get-job --job-name $SERVICE_NAME > terraform/previous_glue.json || echo "{}"
+          cd terraform
+          if [ "${SERVICE_TYPE}" = "lambda" ]; then
+            if aws lambda get-function --function-name $SERVICE_NAME >/dev/null 2>&1; then
+              echo "Importing existing Lambda into Terraform state..."
+              terraform import aws_lambda_function.this $SERVICE_NAME || true
+              terraform import aws_lambda_alias.alias ${SERVICE_NAME}:prod || true
+            fi
+          elif [ "${SERVICE_TYPE}" = "glue" ]; then
+            if aws glue get-job --job-name $SERVICE_NAME >/dev/null 2>&1; then
+              echo "Importing existing Glue job into Terraform state..."
+              terraform import aws_glue_job.this $SERVICE_NAME || true
+            fi
+          fi
 
+      # 11. Backup previous Lambda version (if Lambda)
       - name: Store previous Lambda version
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
           aws lambda get-alias --function-name $SERVICE_NAME --name prod > terraform/previous_version.json || echo "{}"
 
+      # 12. Backup previous Glue job (if Glue)
+      - name: Backup Glue Job
+        if: ${{ env.SERVICE_TYPE == 'glue' }}
+        run: |
+          aws glue get-job --job-name $SERVICE_NAME > terraform/previous_glue.json || echo "{}"
+
+      # 13. Terraform Apply
       - name: Terraform Apply
         run: |
           cd terraform
           terraform apply -auto-approve
 
+      # 14. Ensure Lambda alias exists
       - name: Ensure Lambda alias exists (prod)
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
@@ -117,6 +146,7 @@ jobs:
             echo "Created prod alias pointing to version $NEW_VERSION"
           fi
 
+      # 15. Rollback on Failure (Lambda)
       - name: Rollback on Failure (Lambda)
         if: failure() && env.SERVICE_TYPE == 'lambda'
         run: |
@@ -131,6 +161,7 @@ jobs:
             echo "No previous Lambda version found. Rollback skipped."
           fi
 
+      # 16. Rollback on Failure (Glue)
       - name: Rollback on Failure (Glue)
         if: failure() && env.SERVICE_TYPE == 'glue'
         run: |
