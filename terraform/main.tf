@@ -7,7 +7,7 @@ resource "aws_lambda_function" "this" {
   count = var.service_type == "lambda" ? 1 : 0
 
   function_name = var.service_name
-  filename         = "${path.module}/../deploy.zip"
+  filename = "${path.module}/${var.service_name}.zip"
   handler       = "index.handler"
   runtime       = "nodejs18.x"
   role          = var.lambda_role_arn
