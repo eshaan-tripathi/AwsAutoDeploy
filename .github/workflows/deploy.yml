@@ -28,35 +28,43 @@ jobs:
       # 3. Detect language & install dependencies
       - name: Setup dependencies
         run: |
+          set -e
           cd src
           if [ -f "requirements.txt" ]; then
+            echo "Python project detected"
             python -m pip install --upgrade pip
             pip install -r requirements.txt
-            TEST_CMD="pytest"
-            RUNTIME="python3.11"
-            HANDLER="handler.lambda_handler"
+            echo "TEST_CMD=pytest" >> $GITHUB_ENV
+            echo "RUNTIME=python3.11" >> $GITHUB_ENV
+            echo "HANDLER=handler.lambda_handler" >> $GITHUB_ENV
           elif [ -f "package.json" ]; then
+            echo "Node.js project detected"
             curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y nodejs
             npm install
-            TEST_CMD="npm test"
-            RUNTIME="nodejs20.x"
-            HANDLER="index.handler"
+            echo "TEST_CMD='npm test'" >> $GITHUB_ENV
+            echo "RUNTIME=nodejs20.x" >> $GITHUB_ENV
+            echo "HANDLER=index.handler" >> $GITHUB_ENV
           elif [ -f "pom.xml" ]; then
+            echo "Java Maven project detected"
             mvn install
-            TEST_CMD="mvn test"
-            RUNTIME="java17"
-            HANDLER="com.example.LambdaHandler::handleRequest"
+            echo "TEST_CMD='mvn test'" >> $GITHUB_ENV
+            echo "RUNTIME=java17" >> $GITHUB_ENV
+            echo "HANDLER=com.example.LambdaHandler::handleRequest" >> $GITHUB_ENV
           else
             echo "Unknown language. Skipping tests."
-            TEST_CMD=""
+            echo "TEST_CMD=" >> $GITHUB_ENV
 
       # 4. Run tests
       - name: Run tests
         run: |
+          set -e
           cd src
           if [ -n "$TEST_CMD" ]; then
-            $TEST_CMD || exit 1
+            echo "Running tests..."
+            eval $TEST_CMD
+          else
+            echo "No tests detected, skipping..."
           fi
 
       # 5. Configure AWS credentials
@@ -71,6 +79,7 @@ jobs:
       - name: Deploy Lambda with Rollback
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
+          set -e
           cd src
           zip -r lambda_package.zip . -x "*.git*" -x "tests/*"
 
@@ -114,6 +123,7 @@ jobs:
       - name: Deploy/Update Glue Job
         if: ${{ env.SERVICE_TYPE == 'glue' }}
         run: |
+          set -e
           JOB_EXISTS=$(aws glue get-job --job-name $SERVICE_NAME --query 'Job.Name' --output text 2>/dev/null || echo "")
           if [ "$JOB_EXISTS" == "$SERVICE_NAME" ]; then
             echo "Updating existing Glue job..."
