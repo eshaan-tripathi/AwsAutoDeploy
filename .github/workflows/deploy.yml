@@ -54,6 +54,7 @@ jobs:
             mvn test
           else
             echo "No recognized project files. Skipping tests."
+          fi
 
       # 4. Zip source code (if Lambda)
       - name: Zip Lambda code
@@ -77,7 +78,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 7. Generate Terraform variables dynamically
+      # 7. Generate Terraform vars dynamically
       - name: Generate Terraform vars
         run: |
           echo "service_name = \"${SERVICE_NAME}\"" > terraform/terraform.tfvars
