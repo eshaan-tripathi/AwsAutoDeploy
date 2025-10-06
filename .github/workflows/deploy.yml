@@ -10,9 +10,11 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # 1️⃣ Checkout Code
       - name: Checkout Repository
         uses: actions/checkout@v3
 
+      # 2️⃣ Read Service Config
       - name: Read Service Config
         id: read_service
         run: |
@@ -24,12 +26,7 @@ jobs:
           echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
           echo "Detected service: $SERVICE_TYPE ($SERVICE_NAME in $AWS_REGION)"
 
-      - name: Debug Terraform Variables
-        run: |
-          echo "SERVICE_NAME: ${{ env.SERVICE_NAME }}"
-          echo "SERVICE_TYPE: ${{ env.SERVICE_TYPE }}"
-          echo "AWS_REGION: ${{ env.AWS_REGION }}"
-
+      # 3️⃣ Syntax Check for Lambda and Glue
       - name: Syntax Check for Lambda and Glue
         run: |
           echo "🔍 Running syntax checks for $SERVICE_TYPE..."
@@ -62,12 +59,14 @@ jobs:
             echo "ℹ️ No syntax check needed for service type: $SERVICE_TYPE"
           fi
 
+      # 4️⃣ Run Tests
       - name: Run Tests
         run: |
           npm ci
           echo "🧪 Running tests..."
           npm test || (echo "❌ Tests failed! Stopping pipeline." && exit 1)
 
+      # 5️⃣ Package Source Code
       - name: Package Source Code
         if: ${{ env.SERVICE_TYPE == 'lambda' || env.SERVICE_TYPE == 'glue' }}
         run: |
@@ -75,6 +74,7 @@ jobs:
           zip -r auto-deploy.zip src -x "src/node_modules/*" "*.log" "*.test.js"
           mv auto-deploy.zip terraform/
 
+      # 6️⃣ Configure AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -82,14 +82,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # 7️⃣ Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
+      # 8️⃣ Terraform Init
       - name: Terraform Init
         run: |
           cd terraform
           terraform init -input=false
 
+      # 9️⃣ Store Previous Lambda Version
       - name: Store Previous Lambda Version
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
@@ -100,6 +103,7 @@ jobs:
             echo "No alias found, using default version 1."
           fi
 
+      # 🔟 Check if Service Exists
       - name: Check if Service Exists
         id: check_service
         run: |
@@ -130,11 +134,11 @@ jobs:
           echo "SERVICE_EXISTS=$EXISTS" >> $GITHUB_ENV
           echo "Service exists: $EXISTS"
 
+      # 1️⃣1️⃣ Terraform Plan
       - name: Terraform Plan
         if: ${{ env.SERVICE_EXISTS != 'true' }}
         run: |
           cd terraform
-          echo "📋 Running Terraform plan for $SERVICE_TYPE: $SERVICE_NAME"
           terraform plan \
             -out=tfplan \
             -input=false \
@@ -142,14 +146,14 @@ jobs:
             -var="service_type=${{ env.SERVICE_TYPE }}" \
             -var="region=${{ env.AWS_REGION }}"
 
-      - name: Terraform Apply (Create/Update Infra)
+      # 1️⃣2️⃣ Terraform Apply
+      - name: Terraform Apply
         if: ${{ env.SERVICE_EXISTS != 'true' }}
         run: |
           cd terraform
-          export TF_LOG=INFO
-          echo "🚀 Applying Terraform plan for $SERVICE_TYPE: $SERVICE_NAME"
           terraform apply -parallelism=10 tfplan
 
+      # 1️⃣3️⃣ Create Alias if Missing
       - name: Create Alias if Missing
         if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
@@ -162,23 +166,29 @@ jobs:
             echo "Alias 'prod' created pointing to version $LATEST_VERSION"
           fi
 
-      - name: Rollback on Failure
-        if: failure() && env.SERVICE_TYPE == 'lambda'
+      # 1️⃣4️⃣ Rollback on Any Failure
+      - name: Rollback on Any Failure
+        if: always()
         run: |
-          echo "⚠️ Deployment failed. Attempting rollback..."
-          if ! aws lambda get-function --function-name "$SERVICE_NAME" >/dev/null 2>&1; then
-            echo "Lambda function does not exist. Skipping rollback."
-            exit 0
-          fi
+          if [ "${{ job.status }}" == "failure" ] && [ "$SERVICE_TYPE" == "lambda" ]; then
+            echo "⚠️ Deployment failed. Attempting rollback..."
 
-          PREV_VERSION=$(jq -r '.FunctionVersion' previous_version.json)
-          if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" == "null" ]; then
-            echo "Previous version not found, skipping rollback."
-            exit 0
-          fi
+            if ! aws lambda get-function --function-name "$SERVICE_NAME" >/dev/null 2>&1; then
+              echo "Lambda function does not exist. Skipping rollback."
+              exit 0
+            fi
 
-          aws lambda update-alias \
-            --function-name "$SERVICE_NAME" \
-            --name prod \
-            --function-version "$PREV_VERSION"
-          echo "✅ Rolled back to previous version $PREV_VERSION"
+            PREV_VERSION=$(jq -r '.FunctionVersion' previous_version.json)
+            if [ -z "$PREV_VERSION" ] || [ "$PREV_VERSION" == "null" ]; then
+              echo "Previous version not found, skipping rollback."
+              exit 0
+            fi
+
+            aws lambda update-alias \
+              --function-name "$SERVICE_NAME" \
+              --name prod \
+              --function-version "$PREV_VERSION"
+            echo "✅ Rolled back to previous version $PREV_VERSION"
+          else
+            echo "✅ No rollback needed."
+          fi
