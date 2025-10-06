@@ -71,11 +71,21 @@ jobs:
           fi
 
       # 9️⃣ Terraform Apply (Create/Update Infra)
-      - name: Terraform Apply
+      # 🔍 Terraform Plan
+      - name: Terraform Plan
         run: |
           cd terraform
-          echo "🚀 Applying Terraform for $SERVICE_TYPE: $SERVICE_NAME"
-          terraform apply -auto-approve -parallelism=10
+          echo "📋 Running Terraform plan for $SERVICE_TYPE: $SERVICE_NAME"
+          terraform plan -out=tfplan -input=false
+      
+      # 🚀 Terraform Apply using Plan
+      - name: Terraform Apply (Create/Update Infra)
+        run: |
+          cd terraform
+          export TF_LOG=INFO
+          echo "🚀 Applying Terraform plan for $SERVICE_TYPE: $SERVICE_NAME"
+          terraform apply -parallelism=10 tfplan
+
 
       # 🔟 Create Alias if Missing (Lambda only)
       - name: Create Alias if Missing
