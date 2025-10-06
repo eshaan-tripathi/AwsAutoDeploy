@@ -1,13 +1,11 @@
 variable "service_name" {
   description = "Name of the service / resource"
   type        = string
-  default     = "esh-lambda-demo"
 }
 
 variable "service_type" {
-  description = "Type of service (lambda, s3, glue, ec2)"
+  description = "Type of service (lambda or glue)"
   type        = string
-  default     = "lambda"
 }
 
 variable "region" {

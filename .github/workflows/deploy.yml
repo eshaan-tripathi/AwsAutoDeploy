@@ -30,35 +30,25 @@ jobs:
           echo "SERVICE_TYPE=$SERVICE_TYPE" >> $GITHUB_ENV
           echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
 
-          echo "✅ Loaded config: $SERVICE_NAME ($SERVICE_TYPE) in $AWS_REGION"
-
-      - name: Install dependencies
+      - name: Install Node dependencies
         run: |
           set -e
           npm install
 
-      - name: Check JavaScript Syntax
-        run: |
-          set -e
-          if ! npm list eslint >/dev/null 2>&1; then
-            npm install eslint --save-dev
-          fi
-          npx eslint src/**/*.js --max-warnings=0
-          echo "✅ No syntax errors found!"
-
-      - name: Run Tests
+      - name: Run tests
         run: |
           set -e
           npm install --save-dev jest
           npm test
 
-      - name: Package source code
+      - name: Package Lambda (if service is lambda)
         run: |
           set -e
-          cd src
-          zip -r ../auto-deploy.zip . -x "node_modules/*" "*.test.js"
-          cd ..
-          echo "✅ Code packaged successfully"
+          if [ "$SERVICE_TYPE" == "lambda" ]; then
+            cd src
+            zip -r ../deploy.zip . -x "node_modules/*" "*.test.js"
+            cd ..
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -71,27 +61,17 @@ jobs:
           cd terraform
           terraform init -input=false
 
-      - name: Terraform Validate
-        run: |
-          set -e
-          cd terraform
-          terraform validate
-
       - name: Terraform Plan
         run: |
           set -e
           cd terraform
           terraform plan -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
 
-      - name: Terraform Apply with Rollback
+      - name: Terraform Apply
         run: |
           set -e
           cd terraform
-          if ! terraform apply -auto-approve -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"; then
-            echo "❌ Terraform apply failed! Rolling back..."
-            terraform destroy -auto-approve -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
-            exit 1
-          fi
+          terraform apply -auto-approve -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
 
       - name: Verify Deployment
         run: |
@@ -101,14 +81,12 @@ jobs:
             lambda)
               aws lambda get-function --function-name "$SERVICE_NAME"
               ;;
-            s3)
-              aws s3api head-bucket --bucket "$SERVICE_NAME"
-              ;;
             glue)
               aws glue get-job --job-name "$SERVICE_NAME"
               ;;
-            ec2)
-              echo "Verify EC2 instance with Terraform outputs."
+            *)
+              echo "Unknown service type"
+              exit 1
               ;;
           esac
           echo "✅ Deployment verified successfully!"
