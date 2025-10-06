@@ -1,10 +1,9 @@
-// CommonJS format
 exports.handler = async (event) => {
-  // Sample logic
-  const response = {
-    statusCode: 200,
-    body: JSON.stringify({ message: "Lambda executed successfully!", input: event }),
-  };
+  console.log("Event:", event);
 
-  return response;
+  // simple response
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: "Lambda deployed successfully!" }),
+  };
 };

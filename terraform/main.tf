@@ -17,7 +17,7 @@ variable "region" {
 variable "lambda_role_arn" {
   description = "IAM role ARN for Lambda execution"
   type        = string
-  default     = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole" # <- replace with yours
+  default     = "arn:aws:iam::<YOUR_ACCOUNT_ID>:role/AWSLambdaExecutionRole"
 }
 
 provider "aws" {
@@ -48,8 +48,6 @@ resource "aws_lambda_alias" "alias" {
 resource "aws_glue_job" "this" {
   count = var.service_type == "glue" ? 1 : 0
   name  = var.service_name
-
-  # ensure you've created an appropriate IAM role and put its ARN here or pass via var
   role_arn = var.lambda_role_arn
 
   command {
