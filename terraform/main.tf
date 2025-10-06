@@ -20,7 +20,7 @@ resource "aws_lambda_function" "service" {
   filename          = "auto-deploy.zip"
   handler           = "index.handler"
   runtime           = "nodejs20.x"
-  role              = "arn:aws:iam::123456789012:role/AWSLambdaExecutionRole"
+  role              = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole"
   source_code_hash  = filebase64sha256("auto-deploy.zip")
   publish           = true
 }
@@ -36,7 +36,7 @@ resource "aws_lambda_alias" "alias" {
 resource "aws_glue_job" "service" {
   count = var.service_type == "glue" ? 1 : 0
   name  = var.service_name
-  role_arn = "arn:aws:iam::123456789012:role/AWSGlueServiceRole"
+  role_arn = "arn:aws:iam::612572392212:role/AWSGlueServiceRole"
 
   command {
     name            = "glueetl"
