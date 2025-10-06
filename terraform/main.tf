@@ -14,16 +14,16 @@ provider "aws" {
 }
 
 # ----------------- Lambda -----------------
-resource "aws_lambda_function" "service" {
-  count             = var.service_type == "lambda" ? 1 : 0
-  function_name     = var.service_name
-  filename          = "auto-deploy.zip"
-  handler           = "index.handler"
-  runtime           = "nodejs20.x"
-  role              = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole"
-  source_code_hash  = filebase64sha256("auto-deploy.zip")
-  publish           = true
+resource "aws_lambda_function" "this" {
+  function_name = var.service_name
+  filename      = "${path.module}/auto-deploy.zip"
+  source_code_hash = filebase64sha256("${path.module}/auto-deploy.zip")
+  handler       = "index.handler"
+  runtime       = "nodejs18.x"
+  role          = aws_iam_role.lambda_exec.arn
+  publish       = true
 }
+
 
 resource "aws_lambda_alias" "alias" {
   count            = var.service_type == "lambda" ? 1 : 0
