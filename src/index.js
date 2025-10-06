@@ -1,5 +1,5 @@
-exports.handler = async (event) => {
-  // Intentional syntax error
-  const result = await someFunction();
-  return result;
-};
+const axios = require("axios");
+
+test("sample test", () => {
+  expect(1 + 1).toBe(2);
+});

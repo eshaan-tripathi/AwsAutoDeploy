@@ -1,13 +1,16 @@
-// eslint.config.js
-export default [
-  {
-    files: ["**/*.js"],
-    languageOptions: { ecmaVersion: "latest", sourceType: "module" },
-    rules: {
-      "no-undef": "error",
-      "no-unused-vars": "error",
-      "no-unreachable": "error",
-      "no-extra-semi": "error",
-    },
+module.exports = {
+  env: {
+    commonjs: true,
+    es2021: true,
+    node: true,
+    jest: true
   },
-];
+  extends: "eslint:recommended",
+  parserOptions: {
+    ecmaVersion: "latest"
+  },
+  rules: {
+    "no-unused-vars": "error",
+    "no-undef": "error"
+  }
+};
