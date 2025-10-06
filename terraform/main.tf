@@ -1,25 +1,3 @@
-variable "service_name" {
-  description = "Name of the service / resource"
-  type        = string
-}
-
-variable "service_type" {
-  description = "Type of service (lambda, s3, glue, ec2)"
-  type        = string
-}
-
-variable "region" {
-  description = "AWS region"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "lambda_role_arn" {
-  description = "IAM role ARN for Lambda execution"
-  type        = string
-  default     = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole"
-}
-
 provider "aws" {
   region = var.region
 }
@@ -29,8 +7,8 @@ resource "aws_lambda_function" "this" {
   count = var.service_type == "lambda" ? 1 : 0
 
   function_name     = var.service_name
-  filename          = "${path.module}/deploy.zip"
-  source_code_hash  = filebase64sha256("${path.module}/deploy.zip")
+  filename          = "${path.module}/../auto-deploy.zip"
+  source_code_hash  = filebase64sha256("${path.module}/../auto-deploy.zip")
   handler           = "index.handler"
   runtime           = "nodejs18.x"
   role              = var.lambda_role_arn

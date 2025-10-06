@@ -1,12 +1,8 @@
 {
   "name": "awsautodeploy",
   "version": "1.0.0",
-  "description": "AWS Lambda Auto Deployment project using GitHub Actions and Terraform",
-  "main": "index.js",
-  "type": "commonjs",
-  "directories": {
-    "test": "tests"
-  },
+  "description": "AWS Lambda Auto Deploy",
+  "main": "src/index.js",
   "scripts": {
     "test": "jest",
     "lint": "eslint src/**/*.js tests/**/*.js --max-warnings=0"
@@ -15,26 +11,14 @@
     "type": "git",
     "url": "git+https://github.com/eshaan-tripathi/AwsAutoDeploy.git"
   },
-  "keywords": [
-    "aws",
-    "lambda",
-    "terraform",
-    "github-actions",
-    "deployment"
-  ],
-  "author": "Eshaan Tripathi",
+  "keywords": [],
+  "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/eshaan-tripathi/AwsAutoDeploy/issues"
+  "devDependencies": {
+    "eslint": "^9.37.0",
+    "jest": "^29.0.0"
   },
-  "homepage": "https://github.com/eshaan-tripathi/AwsAutoDeploy#readme",
   "dependencies": {
     "axios": "^1.12.2"
-  },
-  "devDependencies": {
-  "@eslint/js": "^9.0.0",
-  "eslint": "^9.37.0",
-  "jest": "^29.7.0"
-}
-
+  }
 }
