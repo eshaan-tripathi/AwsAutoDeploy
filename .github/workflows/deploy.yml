@@ -1,4 +1,4 @@
-name: Lambda/Glue CI/CD Pipeline
+name: CI/CD Pipeline with Rollback
 
 on:
   push:
@@ -9,35 +9,55 @@ jobs:
   test-and-deploy:
     runs-on: ubuntu-latest
 
-    env:
-      AWS_REGION: us-east-1
-      LAMBDA_FUNCTION_NAME: esh-lambda-demo
-      GLUE_JOB_NAME: esh-glue-job
-
     steps:
-      # 1. Checkout the code
-      - name: Checkout Repository
+      # 1. Checkout code
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Setup Python (if your Lambda/Glue code is Python)
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      # 3. Install dependencies
-      - name: Install Dependencies
+      # 2. Parse service.json
+      - name: Read service.json
+        id: service
         run: |
-          pip install -r src/requirements.txt
-          # If using Node.js Lambda
-          # npm install --prefix src
+          SERVICE_NAME=$(jq -r '.service_name' service.json)
+          SERVICE_TYPE=$(jq -r '.service_type' service.json)
+          AWS_REGION=$(jq -r '.aws_region' service.json)
+          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
+          echo "SERVICE_TYPE=$SERVICE_TYPE" >> $GITHUB_ENV
+          echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
 
-      # 4. Run tests
-      - name: Run Tests
+      # 3. Detect language & install dependencies
+      - name: Setup dependencies
         run: |
           cd src
-          pytest || exit 1  # Exit if tests fail
-          # For Node.js: npm test || exit 1
+          if [ -f "requirements.txt" ]; then
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            TEST_CMD="pytest"
+            RUNTIME="python3.11"
+            HANDLER="handler.lambda_handler"
+          elif [ -f "package.json" ]; then
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            apt-get install -y nodejs
+            npm install
+            TEST_CMD="npm test"
+            RUNTIME="nodejs20.x"
+            HANDLER="index.handler"
+          elif [ -f "pom.xml" ]; then
+            mvn install
+            TEST_CMD="mvn test"
+            RUNTIME="java17"
+            HANDLER="com.example.LambdaHandler::handleRequest"
+          else
+            echo "Unknown language. Skipping tests."
+            TEST_CMD=""
+
+      # 4. Run tests
+      - name: Run tests
+        run: |
+          cd src
+          if [ -n "$TEST_CMD" ]; then
+            $TEST_CMD || exit 1
+          fi
 
       # 5. Configure AWS credentials
       - name: Configure AWS Credentials
@@ -47,35 +67,57 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 6. Deploy or update Lambda function
-      - name: Deploy/Update Lambda
+      # 6. Deploy Lambda with rollback
+      - name: Deploy Lambda with Rollback
+        if: ${{ env.SERVICE_TYPE == 'lambda' }}
         run: |
-          FUNCTION_EXISTS=$(aws lambda get-function --function-name $LAMBDA_FUNCTION_NAME --query 'Configuration.FunctionName' --output text 2>/dev/null || echo "")
-          
+          cd src
           zip -r lambda_package.zip . -x "*.git*" -x "tests/*"
-          
-          if [ "$FUNCTION_EXISTS" == "$LAMBDA_FUNCTION_NAME" ]; then
+
+          # Get current alias version for rollback
+          CURRENT_VERSION=$(aws lambda get-alias --function-name $SERVICE_NAME --name prod --query 'FunctionVersion' --output text 2>/dev/null || echo "")
+
+          # Check if function exists
+          FUNCTION_EXISTS=$(aws lambda get-function --function-name $SERVICE_NAME --query 'Configuration.FunctionName' --output text 2>/dev/null || echo "")
+
+          if [ "$FUNCTION_EXISTS" == "$SERVICE_NAME" ]; then
             echo "Updating existing Lambda function..."
-            aws lambda update-function-code --function-name $LAMBDA_FUNCTION_NAME --zip-file fileb://lambda_package.zip
+            aws lambda update-function-code --function-name $SERVICE_NAME --zip-file fileb://lambda_package.zip
           else
             echo "Creating new Lambda function..."
             aws lambda create-function \
-              --function-name $LAMBDA_FUNCTION_NAME \
-              --runtime python3.11 \
+              --function-name $SERVICE_NAME \
+              --runtime $RUNTIME \
               --role arn:aws:iam::123456789012:role/your-lambda-role \
-              --handler handler.lambda_handler \
+              --handler $HANDLER \
               --zip-file fileb://lambda_package.zip
           fi
 
-      # 7. Deploy or update Glue job (optional, if you have Glue)
+          # Publish new version
+          NEW_VERSION=$(aws lambda publish-version --function-name $SERVICE_NAME --description "Auto-deployed via GitHub Actions" --query 'Version' --output text)
+
+          # Update alias to new version
+          aws lambda update-alias --function-name $SERVICE_NAME --name prod --function-version $NEW_VERSION
+
+          # Test Lambda after deployment
+          TEST_OUTPUT=$(aws lambda invoke --function-name $SERVICE_NAME --qualifier prod /dev/stdout || echo "error")
+          if [[ "$TEST_OUTPUT" == *"error"* ]]; then
+            echo "Deployment test failed! Rolling back..."
+            if [ -n "$CURRENT_VERSION" ]; then
+              aws lambda update-alias --function-name $SERVICE_NAME --name prod --function-version $CURRENT_VERSION
+              echo "Rollback complete to version $CURRENT_VERSION"
+            fi
+            exit 1
+          fi
+
+      # 7. Deploy/Update Glue job (if service_type is glue)
       - name: Deploy/Update Glue Job
+        if: ${{ env.SERVICE_TYPE == 'glue' }}
         run: |
-          JOB_EXISTS=$(aws glue get-job --job-name $GLUE_JOB_NAME --query 'Job.Name' --output text 2>/dev/null || echo "")
-          
-          if [ "$JOB_EXISTS" == "$GLUE_JOB_NAME" ]; then
+          JOB_EXISTS=$(aws glue get-job --job-name $SERVICE_NAME --query 'Job.Name' --output text 2>/dev/null || echo "")
+          if [ "$JOB_EXISTS" == "$SERVICE_NAME" ]; then
             echo "Updating existing Glue job..."
-            aws glue update-job --job-name $GLUE_JOB_NAME --job-update file://glue_job_update.json
+            aws glue update-job --job-name $SERVICE_NAME --job-update file://glue_job_update.json
           else
             echo "Creating new Glue job..."
             aws glue create-job --cli-input-json file://glue_job_create.json
-          fi
