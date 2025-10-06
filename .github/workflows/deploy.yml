@@ -66,7 +66,12 @@ jobs:
 
       - name: Terraform Init
         working-directory: terraform
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
         run: terraform init
+
 
       - name: Terraform Apply (Dynamic)
         id: apply
@@ -75,6 +80,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-south-1
         run: |
           set -e
           terraform apply -auto-approve \
@@ -86,9 +92,11 @@ jobs:
             -var="glue_role=arn:aws:iam::<ACCOUNT_ID>:role/glue-role" \
             -var="glue_script_path=s3://<your-bucket>/glue_script.py"
 
+
       - name: Rollback if Terraform Apply fails
         if: steps.apply.outcome == 'failure'
         run: |
           echo "Terraform failed! Rolling back..."
           cd terraform
           terraform rollback || echo "No previous version found. Keeping current state."
+ 
