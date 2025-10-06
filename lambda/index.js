@@ -1,9 +1,10 @@
-exports.handler = async (event) => {
-  console.log("Lambda invoked with event:", event);
+export async function handler(event) {
+  console.log("Event received:", event);
+
+  // Example logic
   return {
-    statusCode: 200,
-    body: JSON.stringify({
-      message: "Hello from automated Lambda deployment!",
-    }),
+    success: true,
+    message: "Lambda executed successfully!",
+    input: event,
   };
-};
+}
