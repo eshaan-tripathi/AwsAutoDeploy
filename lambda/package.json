@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "description": "AWS Lambda Auto Deploy",
   "main": "index.js",
+  "type":"module",
   "scripts": {
-    "test": "node ./tests/test.js",
+    "test": "node tests/test_lambda.js",
     "lint": "echo 'Linting check passed ✅'"
   },
   "repository": {
