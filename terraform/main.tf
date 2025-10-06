@@ -1,41 +1,34 @@
 provider "aws" {
-  region = var.region
+  region = "us-east-1"
 }
 
-# ----------------- Lambda -----------------
-resource "aws_lambda_function" "this" {
-  count = var.service_type == "lambda" ? 1 : 0
-
-  function_name = var.service_name
-  filename      = "${path.module}/${var.service_name}.zip"
-  handler       = var.lambda_handler
-  runtime       = var.lambda_runtime
-  role          = var.lambda_role_arn
-  publish       = true
-
-  lifecycle {
-    ignore_changes = [source_code_hash]
-  }
+resource "aws_lambda_function" "demo_service" {
+  function_name = "demo-service-e"
+  filename      = "auto-deploy.zip"
+  handler       = "index.handler"
+  runtime       = "nodejs18.x"
+  role          = "arn:aws:iam::612572392212:role/AWSLambdaExecutionRole"
+  source_code_hash = filebase64sha256("auto-deploy.zip")
+  publish = true
 }
 
-resource "aws_lambda_alias" "alias" {
-  count            = var.service_type == "lambda" ? 1 : 0
+resource "aws_lambda_alias" "demo_service_alias" {
   name             = "prod"
-  function_name    = aws_lambda_function.this[0].function_name
-  function_version = aws_lambda_function.this[0].version
+  function_name    = aws_lambda_function.demo_service.function_name
+  function_version = aws_lambda_function.demo_service.version
 }
 
-# ----------------- Glue -----------------
-resource "aws_glue_job" "this" {
-  count    = var.service_type == "glue" ? 1 : 0
-  name     = var.service_name
-  role_arn = var.lambda_role_arn
-
-  command {
-    name            = "glueetl"
-    script_location = "s3://my-bucket/${var.service_name}/script.py"
-    python_version  = "3"
+resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
+  alarm_name          = "DemoServiceErrors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = "60"
+  statistic           = "Sum"
+  threshold           = "1"
+  alarm_description   = "Alarm when Lambda errors exceed 1"
+  dimensions = {
+    FunctionName = aws_lambda_function.demo_service.function_name
   }
-
-  max_retries = 1
 }

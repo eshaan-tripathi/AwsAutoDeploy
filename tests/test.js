@@ -1,8 +1,7 @@
-const { handler } = require("../src/index");
+const { handler } = require('../src/index');
 
-test("Lambda returns 200", async () => {
+test('should return success message', async () => {
   const response = await handler({});
   expect(response.statusCode).toBe(200);
-  const body = JSON.parse(response.body);
-  expect(body.message).toBe("Lambda executed successfully");
+  expect(JSON.parse(response.body).message).toBe("Demo Service is live!");
 });
