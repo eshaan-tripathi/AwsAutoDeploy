@@ -1,5 +1,5 @@
 output "lambda_name" {
-  value = aws_lambda_function.demo_service.function_name
+  value = aws_lambda_function.demo_lambda.function_name
 }
 
 output "glue_job_name" {
