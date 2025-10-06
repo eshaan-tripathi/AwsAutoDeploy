@@ -7,8 +7,8 @@ resource "aws_lambda_function" "this" {
   count = var.service_type == "lambda" ? 1 : 0
 
   function_name     = var.service_name
-  filename          = "${path.module}/../auto-deploy.zip"
-  source_code_hash  = filebase64sha256("${path.module}/../auto-deploy.zip")
+  filename          = "${path.module}/deploy.zip"
+  source_code_hash  = filebase64sha256("${path.module}/deploy.zip")
   handler           = "index.handler"
   runtime           = "nodejs18.x"
   role              = var.lambda_role_arn
@@ -22,21 +22,6 @@ resource "aws_lambda_alias" "alias" {
   function_version = aws_lambda_function.this[0].version
 }
 
-# ----------------- Glue -----------------
-resource "aws_glue_job" "this" {
-  count = var.service_type == "glue" ? 1 : 0
-  name  = var.service_name
-  role_arn = var.lambda_role_arn
-
-  command {
-    name            = "glueetl"
-    script_location = "s3://my-bucket/${var.service_name}/script.py"
-    python_version  = "3"
-  }
-
-  max_retries = 1
-}
-
 # ----------------- S3 -----------------
 resource "aws_s3_bucket" "this" {
   count  = var.service_type == "s3" ? 1 : 0
@@ -46,6 +31,21 @@ resource "aws_s3_bucket" "this" {
   tags = {
     Name = var.service_name
   }
+}
+
+# ----------------- Glue -----------------
+resource "aws_glue_job" "this" {
+  count    = var.service_type == "glue" ? 1 : 0
+  name     = var.service_name
+  role_arn = var.lambda_role_arn
+
+  command {
+    name            = "glueetl"
+    script_location = "s3://my-bucket/${var.service_name}/script.py"
+    python_version  = "3"
+  }
+
+  max_retries = 1
 }
 
 # ----------------- EC2 -----------------

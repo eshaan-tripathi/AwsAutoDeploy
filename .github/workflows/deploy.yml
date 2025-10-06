@@ -15,11 +15,9 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
-      # 1️⃣ Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2️⃣ Load service config
       - name: Load service config
         id: load-config
         run: |
@@ -34,31 +32,26 @@ jobs:
 
           echo "✅ Loaded config: $SERVICE_NAME ($SERVICE_TYPE) in $AWS_REGION"
 
-      # 3️⃣ Install Node dependencies
       - name: Install dependencies
         run: |
           set -e
           npm install
 
-      # 4️⃣ Syntax check
       - name: Check JavaScript Syntax
         run: |
           set -e
-          echo "🔍 Checking syntax for src/ ..."
           if ! npm list eslint >/dev/null 2>&1; then
             npm install eslint --save-dev
           fi
           npx eslint src/**/*.js --max-warnings=0
           echo "✅ No syntax errors found!"
 
-      # 5️⃣ Run tests
       - name: Run Tests
         run: |
           set -e
           npm install --save-dev jest
           npm test
 
-      # 6️⃣ Package code
       - name: Package source code
         run: |
           set -e
@@ -67,81 +60,30 @@ jobs:
           cd ..
           echo "✅ Code packaged successfully"
 
-      # 7️⃣ Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.2
 
-      # 8️⃣ Terraform Init
       - name: Terraform Init
         run: |
           set -e
           cd terraform
           terraform init -input=false
 
-      # 9️⃣ Import existing resource (only if exists)
-      - name: Import Existing AWS Resource
-        run: |
-          set -e
-          cd terraform
-          echo "🔍 Checking if $SERVICE_TYPE service $SERVICE_NAME exists..."
-          case "$SERVICE_TYPE" in
-            lambda)
-              if aws lambda get-function --function-name "$SERVICE_NAME" >/dev/null 2>&1; then
-                echo "Lambda exists → importing..."
-                terraform import \
-                  -var="service_name=$SERVICE_NAME" \
-                  aws_lambda_function.this "$SERVICE_NAME"
-              else
-                echo "Lambda does not exist → will create new one"
-              fi
-              ;;
-            s3)
-              if aws s3api head-bucket --bucket "$SERVICE_NAME" >/dev/null 2>&1; then
-                echo "S3 bucket exists → importing..."
-                terraform import \
-                  -var="service_name=$SERVICE_NAME" \
-                  aws_s3_bucket.this "$SERVICE_NAME"
-              else
-                echo "S3 bucket does not exist → will create new one"
-              fi
-              ;;
-            glue)
-              if aws glue get-job --job-name "$SERVICE_NAME" >/dev/null 2>&1; then
-                echo "Glue job exists → importing..."
-                terraform import \
-                  -var="service_name=$SERVICE_NAME" \
-                  aws_glue_job.this "$SERVICE_NAME"
-              else
-                echo "Glue job does not exist → will create new one"
-              fi
-              ;;
-            ec2)
-              echo "Skipping EC2 import — handled by Terraform configuration."
-              ;;
-            *)
-              echo "⚠️ Unknown service type: $SERVICE_TYPE"
-              exit 1
-              ;;
-          esac
-
-      # 🔟 Terraform Validate
       - name: Terraform Validate
         run: |
           set -e
           cd terraform
           terraform validate
 
-      # 1️⃣1️⃣ Terraform Plan
       - name: Terraform Plan
         run: |
           set -e
           cd terraform
           terraform plan -input=false -var="service_name=$SERVICE_NAME" -var="service_type=$SERVICE_TYPE"
 
-      # 1️⃣2️⃣ Terraform Apply with rollback
-      - name: Terraform Apply
+      - name: Terraform Apply with Rollback
         run: |
           set -e
           cd terraform
@@ -151,7 +93,6 @@ jobs:
             exit 1
           fi
 
-      # 1️⃣3️⃣ Verify Deployment
       - name: Verify Deployment
         run: |
           set -e
