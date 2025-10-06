@@ -6,13 +6,13 @@ provider "aws" {
 resource "aws_lambda_function" "this" {
   count = var.service_type == "lambda" ? 1 : 0
 
-  function_name     = var.service_name
-  filename          = "${path.module}/deploy.zip"
-  source_code_hash  = filebase64sha256("${path.module}/deploy.zip")
-  handler           = "index.handler"
-  runtime           = "nodejs18.x"
-  role              = var.lambda_role_arn
-  publish           = true
+  function_name = var.service_name
+  filename      = "${path.module}/src/deploy.zip"   # Fixed path to match workflow
+  source_code_hash = filebase64sha256("${path.module}/src/deploy.zip") 
+  handler       = "index.handler"
+  runtime       = "nodejs18.x"
+  role          = var.lambda_role_arn
+  publish       = true
 }
 
 resource "aws_lambda_alias" "alias" {
@@ -26,11 +26,17 @@ resource "aws_lambda_alias" "alias" {
 resource "aws_s3_bucket" "this" {
   count  = var.service_type == "s3" ? 1 : 0
   bucket = var.service_name
-  acl    = "private"
 
   tags = {
     Name = var.service_name
   }
+}
+
+# Use aws_s3_bucket_acl instead of deprecated 'acl'
+resource "aws_s3_bucket_acl" "this_acl" {
+  count  = var.service_type == "s3" ? 1 : 0
+  bucket = aws_s3_bucket.this[0].id
+  acl    = "private"
 }
 
 # ----------------- Glue -----------------
